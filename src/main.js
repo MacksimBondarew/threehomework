@@ -33,6 +33,10 @@ const data = [{
     "to": "2023-05-30T20:43:31+00:00",
 }]
 
+const MINUTE = 60 * 1000;
+const DAY = 24 * 60 * MINUTE;
+const MERGE_LIMIT = 15 * MINUTE;
+
 const togetherData = () => {
     let index = 0;
     let newArray = [];
@@ -42,7 +46,7 @@ const togetherData = () => {
             to: new Date(data[index].to),
             elements:  1,
         };
-        while (index + 1 < data.length && (new Date(data[index + 1].from).getTime() - new Date(data[index].to).getTime()) < (15 * 60 * 1000)) {
+        while (index + 1 < data.length && (new Date(data[index + 1].from).getTime() - new Date(data[index].to).getTime()) <= MERGE_LIMIT) {
             group.to =  new Date(data[index + 1].to);
             group.elements++
             index++
@@ -52,34 +56,36 @@ const togetherData = () => {
     }
     return newArray;
 }
+const createGaps = (groups) => {
+    if (groups.length === 0) return [];
 
-const togetherDataConst = togetherData()
+    const dayStart = new Date(groups[0].from);
+    dayStart.setUTCHours(0, 0, 0, 0);
 
-const createGaps = () => {
-    const dateHour = togetherDataConst[0].from.getUTCHours();
-    const dateMinutes = togetherDataConst[0].from.getUTCMinutes();
-    const dateSeconds = togetherDataConst[0].from.getUTCSeconds();
-    const date = togetherDataConst[0].from.getTime() - ((dateSeconds * 1000) + (1000 * 60 * dateMinutes) + (1000 * 60 * 60 * dateHour))
-    const finishDate = date + (23 * 60 * 60 + 59 * 60 + 59) * 1000;
-    let cursor = date;
-    let result = [];
-    for (let togetherDataConstElement of togetherDataConst) {
-        const from = togetherDataConstElement.from.getTime();
-        const to = togetherDataConstElement.to.getTime();
+    const finish = dayStart.getTime() + DAY - 1000; // 23:59:59
+    const result = [];
+    let cursor = dayStart.getTime();
+
+    for (const group of groups) {
+        const from = group.from.getTime();
+        const to = group.to.getTime();
+
         if (from > cursor) {
-            result.push({ time: from - cursor, gap: "gap" })
+            result.push({ time: from - cursor, gap: true });
         }
-        result.push({ ...togetherDataConstElement, time: to - from });
+
+        result.push({ ...group, time: to - from, gap: false });
         cursor = to;
     }
-    if (finishDate > cursor) {
-        result.push({ time: finishDate - cursor, gap: "gap" });
-    }
-    return result;
-}
-const items = createGaps();
 
-const render = () => {
+    if (finish > cursor) {
+        result.push({ time: finish - cursor, gap: true });
+    }
+
+    return result;
+};
+
+const render = (items) => {
     const track = document.getElementById("track");
     track.innerHTML = "";
 
@@ -114,4 +120,4 @@ const render = () => {
         })
         .replace(",", "");
 };
-render()
+render(createGaps(togetherData(data)));
